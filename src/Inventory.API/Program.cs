@@ -81,7 +81,4 @@ using (var scope = app.Services.CreateScope())
 }
 
 
-Console.WriteLine("🚀 Inventory Reservation API is running...");
-Console.WriteLine($"📖 Swagger UI: https://localhost:{app.Environment.ApplicationName}/swagger");
-
 app.Run();

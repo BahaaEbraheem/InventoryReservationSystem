@@ -7,10 +7,12 @@ services:
       dockerfile: Inventory.Api/Dockerfile
     container_name: inventory_api
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=InventoryDb;User=sa;Password=YourStrong!Pass123;TrustServerCertificate=True;
+      # سيتم دمج كلمة المرور تلقائيًا من المتغير البيئي
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=InventoryDb;User=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;
     ports:
       - "8080:8080"
     restart: always
@@ -20,11 +22,19 @@ services:
     container_name: inventory_sql
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong!Pass123
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD} # ⚠️ المتغير الصحيح هو MSSQL_SA_PASSWORD
     ports:
       - "1433:1433"
     volumes:
-      - sql_data:/var/opt/mssql
+      - sql_/var/opt/mssql
+    healthcheck:
+      test: >
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "$$SA_PASSWORD" -Q "SELECT 1"
+        || exit 1
+      interval: 10s
+      retries: 10
+      timeout: 5s
+      start_period: 15s
     restart: always
 
 volumes:
