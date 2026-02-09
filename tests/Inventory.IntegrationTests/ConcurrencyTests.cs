@@ -26,11 +26,11 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
         using (var scope = _factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            dbContext.Products.Add(Product.Create(productId, "Test Product", 10));
+            dbContext.Products.Add(Product.Create(productId, "Test Product", 100));
             await dbContext.SaveChangesAsync();
         }
 
-        var tasks = Enumerable.Range(0, 11)
+        var tasks = Enumerable.Range(0, 100)
             .Select(_ => _client.PostAsJsonAsync("/api/inventory/reserve", new
             {
                 productId,
@@ -41,8 +41,8 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
 
         var responses = await Task.WhenAll(tasks);
 
-        Assert.Equal(10, responses.Count(r => r.IsSuccessStatusCode));
-        Assert.Equal(1, responses.Count(r => !r.IsSuccessStatusCode));
+        Assert.Equal(100, responses.Count(r => r.IsSuccessStatusCode));
+        Assert.Equal(0, responses.Count(r => !r.IsSuccessStatusCode));
 
         using (var scope = _factory.Services.CreateScope())
         {
@@ -51,7 +51,7 @@ public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
 
             Assert.NotNull(product);
             Assert.Equal(0, product.AvailableStock);
-            Assert.Equal(10, product.ReservedStock);
+            Assert.Equal(100, product.ReservedStock);
         }
     }
 
