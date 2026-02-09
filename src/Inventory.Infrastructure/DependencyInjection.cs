@@ -13,16 +13,13 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
-        // قاعدة البيانات
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        // Repositories
         services.AddScoped<IProductRepository, EfProductRepository>();
         services.AddScoped<IReservationRepository, EfReservationRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddHostedService<ReservationExpirationService>();
-        // Event Publisher مع Polly
         services.AddScoped<IEventPublisher, ResilientEventPublisher>();
 
         return services;

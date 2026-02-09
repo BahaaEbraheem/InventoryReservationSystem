@@ -5,9 +5,7 @@ using Microsoft.OpenApi;
 using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
-// ============================================
-// CORS Configuration
-// ============================================
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -16,27 +14,17 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader());
 });
 
-// ============================================
-// Application Layer
-// ============================================
 builder.Services.AddApplication();
 
-// ============================================
-// Infrastructure Layer
-// ============================================
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? "Server=(localdb)\\mssqllocaldb;Database=InventoryDb;Trusted_Connection=True;MultipleActiveResultSets=true;";
 
 builder.Services.AddInfrastructure(connectionString);
 
-// ============================================
-// Controllers
-// ============================================
+
 builder.Services.AddControllers();
 
-// ============================================
-// OpenAPI/Swagger Configuration (.NET 10 syntax)
-// ============================================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -50,17 +38,13 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// ============================================
-// Middleware Pipeline
-// ============================================
+
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// ============================================
-// Swagger UI
-// ============================================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -70,9 +54,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// ============================================
-// Database Initialization
-// ============================================
+
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -90,17 +72,15 @@ using (var scope = app.Services.CreateScope())
         ));
 
         await dbContext.SaveChangesAsync();
-        Console.WriteLine("✅ Database seeded with test product");
+        Console.WriteLine("Database seeded with test product");
     }
     else
     {
-        Console.WriteLine("✅ Database already has data");
+        Console.WriteLine("Database already has data");
     }
 }
 
-// ============================================
-// Run Application
-// ============================================
+
 Console.WriteLine("🚀 Inventory Reservation API is running...");
 Console.WriteLine($"📖 Swagger UI: https://localhost:{app.Environment.ApplicationName}/swagger");
 

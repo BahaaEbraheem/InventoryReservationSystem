@@ -37,13 +37,11 @@ public class ApplicationDbContext : DbContext
             entity.Property(p => p.ReservedStock)
                 .IsRequired();
 
-            // Concurrency Token (Optimistic Concurrency)
             entity.Property(p => p.RowVersion)
                 .IsRowVersion()
                 .IsConcurrencyToken();
 
 
-            // Optional: Index for performance
             entity.HasIndex(p => p.Name);
         });
     }
