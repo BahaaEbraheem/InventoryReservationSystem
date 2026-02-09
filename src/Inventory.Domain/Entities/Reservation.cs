@@ -14,6 +14,8 @@ public class Reservation
     public DateTime ExpiresAt { get; private set; }
     public bool IsReleased { get; private set; }
     public DateTime? ReleasedAt { get; private set; }
+    public Product Product { get; private set; }
+
 
     public static Reservation Create(Guid productId, Guid userId, int quantity, TimeSpan duration)
     {
@@ -31,15 +33,15 @@ public class Reservation
             IsReleased = false
         };
     }
-
+    //يعلّم الحجز بأنه انتهى ويعيد الكمية للمنتج
     public void Release()
     {
-        if (IsReleased)
-            throw new InvalidOperationException("Reservation already released");
+        if (IsReleased) throw new InvalidOperationException();
 
         IsReleased = true;
         ReleasedAt = DateTime.UtcNow;
     }
 
-    public bool IsExpired => !IsReleased && DateTime.UtcNow > ExpiresAt;
+
+    public bool IsExpired => !IsReleased && DateTime.UtcNow > ExpiresAt; // تحديد اذا الحجز انتهى ام لا
 }

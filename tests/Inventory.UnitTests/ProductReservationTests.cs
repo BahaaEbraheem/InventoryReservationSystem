@@ -74,15 +74,17 @@ public class ProductReservationTests
     }
 
     [Fact]
-    public void ReleaseReservation_WithInvalidQuantity_ShouldThrowException()
+    public void ReleaseReservation_WithInvalidQuantity_ShouldNotChangeState()
     {
-        // Arrange
         var product = Product.Create(_productId, _productName, initialStock: 100);
         product.ReserveStock(10);
 
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => product.ReleaseReservation(15));
+        product.ReleaseReservation(15); 
+
+        Assert.Equal(90, product.AvailableStock);
+        Assert.Equal(10, product.ReservedStock);
     }
+
 
     [Fact]
     public void ConfirmPurchase_ShouldReduceReservedStock()

@@ -5,40 +5,46 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Infrastructure.Repositories;
 
-public class EfReservationRepository(ApplicationDbContext context) : IReservationRepository
+public class EfReservationRepository : IReservationRepository
 {
-    public async Task AddAsync(Reservation reservation, CancellationToken cancellationToken = default)
+    private readonly ApplicationDbContext _context;
+
+    public EfReservationRepository(ApplicationDbContext context)
     {
-        await context.Reservations.AddAsync(reservation, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+        _context = context;
     }
 
+    public async Task AddAsync(Reservation reservation, CancellationToken cancellationToken = default)
+    {
+        await _context.Reservations.AddAsync(reservation, cancellationToken);
+    }
+
+    // الحجوزات المنتهية
     public async Task<List<Reservation>> GetExpiredReservationsAsync(
         DateTime cutoffTime,
         CancellationToken cancellationToken = default)
     {
-        return await context.Reservations
-            .Where(r => r.ExpiresAt < cutoffTime && !r.IsReleased)
+        return await _context.Reservations
+            .Where(r => r.ExpiresAt <= cutoffTime && !r.IsReleased)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task ReleaseReservationAsync(Guid reservationId, CancellationToken cancellationToken = default)
+    public async Task<Reservation?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var reservation = await context.Reservations.FindAsync(new object[] { reservationId }, cancellationToken);
-        if (reservation == null || reservation.IsReleased)
+        return await _context.Reservations
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+    }
+
+    public async Task MarkAsReleasedAsync(Guid reservationId, CancellationToken cancellationToken = default)
+    {
+        var reservation = await _context.Reservations
+            .FirstOrDefaultAsync(r => r.Id == reservationId, cancellationToken);
+
+        if (reservation == null)
             return;
 
         reservation.Release();
-        context.Reservations.Update(reservation);
 
-        // تحديث المخزون أيضاً
-        var product = await context.Products.FindAsync(new object[] { reservation.ProductId }, cancellationToken);
-        if (product != null)
-        {
-            product.ReleaseReservation(reservation.Quantity);
-            context.Products.Update(product);
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
+        _context.Reservations.Update(reservation);
     }
 }

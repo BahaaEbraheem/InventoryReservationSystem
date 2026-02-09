@@ -7,9 +7,13 @@ public class Product
     public Guid Id { get; private set; }
     public string Name { get; private set; }
     public int AvailableStock { get; private set; }
-    public int ReservedStock { get; private set; }
+    public int ReservedStock { get; private set; }      // الكمية المجوزة مؤقتا
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
+    public byte[] RowVersion { get; private set; }   //لمنع التحديث المتزامن
+
+
+    private Product() { }
 
     public static Product Create(Guid id, string name, int initialStock)
     {
@@ -26,37 +30,40 @@ public class Product
             UpdatedAt = DateTime.UtcNow
         };
     }
-
-    // منطق الحجز - يُنفذ في الـ Domain (DDD)
+    //  تتم عملية الحجز الحقيقية
     public void ReserveStock(int quantity)
     {
         if (quantity <= 0)
             throw new ArgumentException("Quantity must be positive", nameof(quantity));
 
-        if (AvailableStock < quantity)
+        if (AvailableStock < quantity) // عملية التحقق من ان المخزون يكفي
             throw new InsufficientStockException(Id, AvailableStock, quantity);
 
-        AvailableStock -= quantity;
-        ReservedStock += quantity;
+        AvailableStock -= quantity; // يقلل المتوفر
+        ReservedStock += quantity;  // يزيد المحجوز
         UpdatedAt = DateTime.UtcNow;
     }
-
-    // إطلاق الحجز المؤقت
+    // عند انتهء الحجز او إلغاؤه
     public void ReleaseReservation(int quantity)
     {
-        if (quantity <= 0 || quantity > ReservedStock)
-            throw new ArgumentException("Invalid release quantity", nameof(quantity));
+        if (quantity <= 0 || ReservedStock == 0)
+            return;
 
-        AvailableStock += quantity;
-        ReservedStock -= quantity;
+        var actualRelease = Math.Min(quantity, ReservedStock);
+
+        AvailableStock += actualRelease; // يعيد الكمية
+        ReservedStock -= actualRelease; // يقلل الكمية المحجوزة
         UpdatedAt = DateTime.UtcNow;
     }
 
-    // تحديث المخزون بعد الشراء النهائي
     public void ConfirmPurchase(int quantity)
     {
-        if (quantity <= 0 || quantity > ReservedStock)
-            throw new ArgumentException("Invalid purchase quantity", nameof(quantity));
+        if (quantity <= 0)
+            throw new ArgumentException("Quantity must be positive", nameof(quantity));
+
+        if (quantity > ReservedStock)
+            throw new InvalidOperationException(
+                $"Cannot confirm purchase of {quantity} items. Only {ReservedStock} reserved.");
 
         ReservedStock -= quantity;
         UpdatedAt = DateTime.UtcNow;

@@ -20,10 +20,8 @@ public static class DependencyInjection
         // Repositories
         services.AddScoped<IProductRepository, EfProductRepository>();
         services.AddScoped<IReservationRepository, EfReservationRepository>();
-
-        // Background Service (يتم تسجيله تلقائياً كـ Singleton)
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddHostedService<ReservationExpirationService>();
-
         // Event Publisher مع Polly
         services.AddScoped<IEventPublisher, ResilientEventPublisher>();
 

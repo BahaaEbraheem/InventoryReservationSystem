@@ -14,7 +14,7 @@ public class ResilientEventPublisher : IEventPublisher
     {
         _logger = logger;
 
-        // استراتيجية إعادة المحاولة: 3 محاولات مع تأخير أسي
+        // استراتيجية إعادة المحاولة هي 3 محاولات مع تأخير أسي
         _retryPolicy = Policy
             .Handle<Exception>()
             .WaitAndRetryAsync(
@@ -34,11 +34,8 @@ public class ResilientEventPublisher : IEventPublisher
     {
         await _retryPolicy.ExecuteAsync(async () =>
         {
-            // في بيئة حقيقية: نشر الحدث عبر RabbitMQ/Kafka
-            // هنا نُسجل فقط لأغراض العرض
             _logger.LogInformation("Published event: {@Event}", @event);
 
-            // محاكاة فشل عشوائي لاختبار Polly (10% فرصة)
             if (Random.Shared.Next(100) < 10)
                 throw new Exception("Simulated transient failure");
         });

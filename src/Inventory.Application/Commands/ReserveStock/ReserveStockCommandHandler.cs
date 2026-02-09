@@ -1,61 +1,91 @@
 ﻿using MediatR;
+using Microsoft.Extensions.Logging;
 using Inventory.Domain.Entities;
 using Inventory.Domain.Exceptions;
 using Inventory.Application.Repositories;
 using Inventory.Application.Events;
+using Microsoft.Extensions.Hosting;
 
 namespace Inventory.Application.Commands.ReserveStock;
 
-public class ReserveStockCommandHandler(
-    IProductRepository productRepository,
-    IReservationRepository reservationRepository,
-    IEventPublisher eventPublisher  
-) : IRequestHandler<ReserveStockCommand, ReserveStockResult>
+public class ReserveStockCommandHandler : IRequestHandler<ReserveStockCommand, ReserveStockResult>
 {
-    private readonly TimeSpan _reservationDuration = TimeSpan.FromMinutes(2);
+    private readonly IProductRepository _productRepository;
+    private readonly IReservationRepository _reservationRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IEventPublisher _eventPublisher;
+    private readonly IHostEnvironment _env;
+    private readonly ILogger<ReserveStockCommandHandler> _logger;
+
+    public ReserveStockCommandHandler(
+        IProductRepository productRepository,
+        IReservationRepository reservationRepository,
+        IUnitOfWork unitOfWork,
+        IEventPublisher eventPublisher,
+        IHostEnvironment env,
+        ILogger<ReserveStockCommandHandler> logger)
+    {
+        _productRepository = productRepository;
+        _reservationRepository = reservationRepository;
+        _unitOfWork = unitOfWork;
+        _eventPublisher = eventPublisher;
+        _env = env;
+        _logger = logger;
+    }
 
     public async Task<ReserveStockResult> Handle(ReserveStockCommand request, CancellationToken cancellationToken)
     {
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
         try
         {
-            // 1. جلب المنتج مع قفل الصف لمنع السباق (Row Locking)
-            var product = await productRepository.GetByIdWithLockAsync(request.ProductId, cancellationToken);
+            // منع البيع الزائد
+            var product = await _productRepository.GetByIdWithLockAsync(request.ProductId, cancellationToken);
             if (product == null)
                 return new ReserveStockResult(false, ErrorMessage: "Product not found");
 
-            // 2. تنفيذ منطق الحجز في الـ Domain
+            // حجز الكمية
             product.ReserveStock(request.Quantity);
 
-            // 3. إنشاء الحجز
+            // تحديد مدة الحجز
+            var duration = _env.IsEnvironment("Testing")
+                ? TimeSpan.FromMinutes(5)   // في الاختبار
+                : TimeSpan.FromMinutes(2);  // في الإنتاج
+
             var reservation = Reservation.Create(
                 request.ProductId,
                 request.UserId,
                 request.Quantity,
-                _reservationDuration
+                duration
             );
 
-            // 4. الحفظ في قاعدة البيانات
-            await reservationRepository.AddAsync(reservation, cancellationToken);
-            await productRepository.UpdateAsync(product, cancellationToken);
+            //  حفظ التغييرات
+            await _reservationRepository.AddAsync(reservation, cancellationToken);
+            await _productRepository.UpdateAsync(product, cancellationToken);
 
-            // 5. نشر الحدث باستخدام الواجهة الصحيحة
-            await eventPublisher.PublishAsync(new InventoryReservedEvent(
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+
+            // Polly نشر الحدث باستخدام 
+            var evt = new InventoryReservedEvent(
                 reservation.Id,
-                reservation.ProductId,
-                reservation.UserId,
-                reservation.Quantity,
+                request.ProductId,
+                request.UserId,
+                request.Quantity,
                 reservation.ExpiresAt
-            ), cancellationToken);
+            );
+
+            await _eventPublisher.PublishAsync(evt, cancellationToken);
+
+            _logger.LogInformation("Reservation {ReservationId} created and event published.", reservation.Id);
 
             return new ReserveStockResult(true, reservation.Id);
         }
-        catch (InsufficientStockException ex)
-        {
-            return new ReserveStockResult(false, ErrorMessage: ex.Message);
-        }
         catch (Exception ex)
         {
-            return new ReserveStockResult(false, ErrorMessage: "Failed to reserve stock: " + ex.Message);
+            await _unitOfWork.RollbackAsync(cancellationToken);
+            _logger.LogError(ex, "Error while reserving stock");
+            return new ReserveStockResult(false, ErrorMessage: ex.Message);
         }
     }
 }

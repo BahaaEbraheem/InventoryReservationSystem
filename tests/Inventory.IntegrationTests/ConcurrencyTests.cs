@@ -1,117 +1,102 @@
-﻿using Xunit;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Inventory.API;
+﻿using System.Net.Http.Json;
+using Inventory.Domain.Entities;
+using Inventory.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace Inventory.IntegrationTests;
 
-public class ConcurrencyTests : IClassFixture<WebApplicationFactory<Program>>
+public class ConcurrencyTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly CustomWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
-    public ConcurrencyTests(WebApplicationFactory<Program> factory)
+    public ConcurrencyTests(CustomWebApplicationFactory factory)
     {
         _factory = factory;
-        _client = _factory.CreateClient();
+        _client = factory.CreateClient();
+        _client.Timeout = TimeSpan.FromSeconds(60);
     }
 
     [Fact]
-    public async Task ConcurrentReservations_ShouldNotOverSell_SingleItem()
+    public async Task ConcurrentReservations_ShouldNotOverSell()
     {
-        // Arrange: منتج واحد فقط في المخزون
-        var productId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        var concurrentRequests = 100;
+        var productId = Guid.NewGuid();
 
-        // Act: إرسال 100 طلب متزامن لنفس المنتج
-        var tasks = new List<Task<HttpResponseMessage>>();
-
-        for (int i = 0; i < concurrentRequests; i++)
+        using (var scope = _factory.Services.CreateScope())
         {
-            var userId = Guid.NewGuid();
-            var request = new
-            {
-                productId = productId,
-                quantity = 1,
-                userId = userId
-            };
-
-            tasks.Add(_client.PostAsJsonAsync("/api/inventory/reserve", request));
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            dbContext.Products.Add(Product.Create(productId, "Test Product", 10));
+            await dbContext.SaveChangesAsync();
         }
 
-        // انتظار جميع الطلبات
+        var tasks = Enumerable.Range(0, 11)
+            .Select(_ => _client.PostAsJsonAsync("/api/inventory/reserve", new
+            {
+                productId,
+                quantity = 1,
+                userId = Guid.NewGuid()
+            }))
+            .ToList();
+
         var responses = await Task.WhenAll(tasks);
 
-        // Count successful responses
-        var successfulResponses = responses
-            .Where(r => r.IsSuccessStatusCode)
-            .ToList();
+        Assert.Equal(10, responses.Count(r => r.IsSuccessStatusCode));
+        Assert.Equal(1, responses.Count(r => !r.IsSuccessStatusCode));
 
-        var failedResponses = responses
-            .Where(r => !r.IsSuccessStatusCode)
-            .ToList();
-
-        // Assert: فقط طلب واحد يجب أن ينجح
-        // لأن المخزون كان 100، وطلبنا 100 مرة 1 وحدة
-        // يجب أن ينجح 100 طلب بالضبط
-
-        // في الواقع، لأننا بدأنا بـ 100 وحدة، يجب أن تنجح جميع الطلبات
-        Assert.Equal(100, successfulResponses.Count);
-        Assert.Equal(0, failedResponses.Count);
-
-        // تحقق من أن كل استجابة ناجحة تحتوي على reservationId
-        foreach (var response in successfulResponses)
+        using (var scope = _factory.Services.CreateScope())
         {
-            var content = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-            Assert.True(content.ContainsKey("reservationId"));
-            Assert.True(content.ContainsKey("success"));
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var product = await dbContext.Products.FindAsync(productId);
+
+            Assert.NotNull(product);
+            Assert.Equal(0, product.AvailableStock);
+            Assert.Equal(10, product.ReservedStock);
         }
     }
 
     [Fact]
-    public async Task ConcurrentReservations_ShouldPreventOverSelling()
+    public async Task ExpiredReservations_ShouldBeReleased()
     {
-        // Arrange: منتج بمخزون 10 وحدات فقط
         var productId = Guid.NewGuid();
-        var setupRequest = new
+        var userId = Guid.NewGuid();
+
+        using (var scope = _factory.Services.CreateScope())
         {
-            productId = productId,
-            quantity = 10,
-            userId = Guid.NewGuid()
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            dbContext.Products.Add(Product.Create(productId, "Test Product", 5));
+            await dbContext.SaveChangesAsync();
+        }
+
+        var reserveRequest = new
+        {
+            productId,
+            quantity = 3,
+            userId
         };
 
-        // إعداد منتج جديد للمستخدم
-        // (هذا يتطلب إضافة endpoint للإعداد في الـ API للتجربة)
+        var response = await _client.PostAsJsonAsync("/api/inventory/reserve", reserveRequest);
+        Assert.True(response.IsSuccessStatusCode);
 
-        // Act: محاولة حجز 15 وحدة من 100 طلب متزامن
-        var concurrentRequests = 100;
-        var tasks = new List<Task<HttpResponseMessage>>();
-
-        for (int i = 0; i < concurrentRequests; i++)
+        using (var scope = _factory.Services.CreateScope())
         {
-            var request = new
-            {
-                productId = productId,
-                quantity = 15, // أكثر من المخزون
-                userId = Guid.NewGuid()
-            };
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var product = await dbContext.Products.FindAsync(productId);
 
-            tasks.Add(_client.PostAsJsonAsync("/api/inventory/reserve", request));
+            Assert.Equal(2, product.AvailableStock);
+            Assert.Equal(3, product.ReservedStock);
         }
 
-        var responses = await Task.WhenAll(tasks);
+        await Task.Delay(5000);
 
-        var successfulResponses = responses
-            .Where(r => r.IsSuccessStatusCode)
-            .ToList();
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var product = await dbContext.Products.FindAsync(productId);
 
-        var failedResponses = responses
-            .Where(r => !r.IsSuccessStatusCode)
-            .ToList();
-
-        // Assert: يجب أن تفشل جميع الطلبات لأن الكمية المطلوبة (15) > المخزون (10)
-        Assert.Equal(0, successfulResponses.Count);
-        Assert.Equal(100, failedResponses.Count);
+            Assert.Equal(5, product.AvailableStock);
+            Assert.Equal(0, product.ReservedStock);
+        }
     }
 }

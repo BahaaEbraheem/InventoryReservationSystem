@@ -1,35 +1,40 @@
-﻿using Inventory.Application.Repositories;
-using Inventory.Domain.Entities;
+﻿using Inventory.Domain.Entities;
+using Inventory.Application.Repositories;
 using Inventory.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Infrastructure.Repositories;
 
-public class EfProductRepository(ApplicationDbContext context) : IProductRepository
+public class EfProductRepository : IProductRepository
 {
-    public async Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    private readonly ApplicationDbContext _context;
+
+    public EfProductRepository(ApplicationDbContext context)
     {
-        return await context.Products.FindAsync(new object[] { id }, cancellationToken);
+        _context = context;
     }
 
-    // ⚠️ النقطة الأهم: قفل الصف أثناء القراءة لمنع السباق
+    public async Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _context.Products.FindAsync(new object[] { id }, cancellationToken);
+    }
+
     public async Task<Product?> GetByIdWithLockAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        // استخدام ROWLOCK و UPDLOCK لمنع عمليات القراءة المتزامنة من تجاوز بعضها
-        return await context.Products
-            .FromSqlRaw("SELECT * FROM Products WITH (ROWLOCK, UPDLOCK, READPAST) WHERE Id = {0}", id)
+        return await _context.Products
+            .FromSqlRaw("SELECT * FROM Products WITH (UPDLOCK, ROWLOCK) WHERE Id = {0}", id)
+            .AsTracking()
             .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task AddAsync(Product product, CancellationToken cancellationToken = default)
     {
-        await context.Products.AddAsync(product, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+        await _context.Products.AddAsync(product, cancellationToken);
     }
 
-    public async Task UpdateAsync(Product product, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(Product product, CancellationToken cancellationToken = default)
     {
-        context.Products.Update(product);
-        await context.SaveChangesAsync(cancellationToken);
+        _context.Products.Update(product);
+        return Task.CompletedTask;
     }
 }
