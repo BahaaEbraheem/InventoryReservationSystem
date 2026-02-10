@@ -1,41 +1,40 @@
-version: "3.9"
+version: '3.8'
 
 services:
   api:
     build:
       context: .
-      dockerfile: Inventory.Api/Dockerfile
+      dockerfile: Dockerfile
     container_name: inventory_api
     depends_on:
       sqlserver:
         condition: service_healthy
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      # سيتم دمج كلمة المرور تلقائيًا من المتغير البيئي
+      - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=InventoryDb;User=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;
     ports:
       - "8080:8080"
-    restart: always
+    restart: unless-stopped  # Changed from 'always' for better control
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: inventory_sql
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${SA_PASSWORD} # ⚠️ المتغير الصحيح هو MSSQL_SA_PASSWORD
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD}
     ports:
       - "1433:1433"
     volumes:
-      - sql_/var/opt/mssql
+      - sql_data:/var/opt/mssql
     healthcheck:
       test: >
-        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "$$SA_PASSWORD" -Q "SELECT 1"
+        /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1"
         || exit 1
       interval: 10s
-      retries: 10
+      retries: 15
       timeout: 5s
-      start_period: 15s
-    restart: always
+      start_period: 40s
+    restart: unless-stopped  # Changed from 'always'
 
 volumes:
   sql_data:

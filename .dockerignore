@@ -1,0 +1,14 @@
+﻿**/bin
+**/obj
+**/tests
+**/.vs
+**/.git
+**/.vscode
+*.user
+*.suo
+*.sln
+*.slnx
+*.userprefs
+*.pidb
+*.mdb
+*.opendb
