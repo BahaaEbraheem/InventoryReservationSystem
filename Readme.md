@@ -1,6 +1,7 @@
 # Inventory Reservation System
 
 High-throughput inventory reservation engine for flash sales with concurrency control.
+
 # Inventory Reservation Engine
 
 High-throughput inventory reservation system for flash sales with robust concurrency control to prevent over-selling under extreme load.
@@ -29,6 +30,7 @@ High-throughput inventory reservation system for flash sales with robust concurr
 - **.NET 10 SDK**
 - **SQL Server** (LocalDB, SQL Server Express, or Docker container)
 - **Visual Studio 2022** / **VS Code** / **Rider** (optional)
+- **Docker** (optional, for containerized deployment)
 
 ---
 
@@ -40,7 +42,7 @@ High-throughput inventory reservation system for flash sales with robust concurr
 - **Infrastructure Layer**: EF Core, background services, Polly resilience
 - **API Layer**: REST endpoints with Swagger
 
-
+---
 
 ## How to Run
 
@@ -48,10 +50,14 @@ High-throughput inventory reservation system for flash sales with robust concurr
 - .NET 10 SDK
 - SQL Server LocalDB (or Docker)
 
-### Steps
+### Option 1: Run Locally with .NET CLI
+
 ```bash
 # Restore dependencies
 dotnet restore
 
 # Run API (auto-creates database)
 dotnet run --project src/Inventory.API
+
+# Build and run the application with Docker Compose
+docker-compose up --build
