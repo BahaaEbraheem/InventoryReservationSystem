@@ -45,14 +45,14 @@ app.UseAuthorization();
 app.MapControllers();
 
 
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory Reservation API v1");
     });
-}
+//}
 
 
 using (var scope = app.Services.CreateScope())
