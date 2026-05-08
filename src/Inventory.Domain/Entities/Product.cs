@@ -44,15 +44,25 @@ public class Product
         UpdatedAt = DateTime.UtcNow;
     }
     // عند انتهء الحجز او إلغاؤه
+    //public void ReleaseReservation(int quantity)
+    //{
+    //    if (quantity <= 0 || ReservedStock == 0)
+    //        return;
+
+    //    var actualRelease = Math.Min(quantity, ReservedStock);
+
+    //    AvailableStock += actualRelease; // يعيد الكمية
+    //    ReservedStock -= actualRelease; // يقلل الكمية المحجوزة
+    //    UpdatedAt = DateTime.UtcNow;
+    //}
+
     public void ReleaseReservation(int quantity)
     {
-        if (quantity <= 0 || ReservedStock == 0)
+        if (quantity <= 0 || quantity > ReservedStock)
             return;
 
-        var actualRelease = Math.Min(quantity, ReservedStock);
-
-        AvailableStock += actualRelease; // يعيد الكمية
-        ReservedStock -= actualRelease; // يقلل الكمية المحجوزة
+        ReservedStock -= quantity;
+        AvailableStock += quantity;
         UpdatedAt = DateTime.UtcNow;
     }
 

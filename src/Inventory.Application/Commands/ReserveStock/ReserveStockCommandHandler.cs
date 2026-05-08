@@ -48,9 +48,11 @@ public class ReserveStockCommandHandler : IRequestHandler<ReserveStockCommand, R
             product.ReserveStock(request.Quantity);
 
             // تحديد مدة الحجز
-            var duration = _env.IsEnvironment("Testing")
-                ? TimeSpan.FromMinutes(5)   // في الاختبار
-                : TimeSpan.FromMinutes(2);  // في الإنتاج
+            //var duration = _env.IsEnvironment("Testing")
+            //    ? TimeSpan.FromMinutes(5)   // في الاختبار
+            //    : TimeSpan.FromMinutes(2);  // في الإنتاج
+            var duration = _env.IsEnvironment("Testing") ? TimeSpan.FromSeconds(2) : TimeSpan.FromMinutes(2);
+
 
             var reservation = Reservation.Create(
                 request.ProductId,

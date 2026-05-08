@@ -21,9 +21,13 @@ public class ReservationExpirationService : BackgroundService
 
         // في الاختبار: كل ثانية
         // في الإنتاج: كل 30 ثانية
+        //_checkInterval = env.IsEnvironment("Testing")
+        //    ? TimeSpan.FromMinutes(5)
+        //    : TimeSpan.FromSeconds(30);
+
         _checkInterval = env.IsEnvironment("Testing")
-            ? TimeSpan.FromMinutes(5)
-            : TimeSpan.FromSeconds(30);
+         ? TimeSpan.FromSeconds(1)
+         : TimeSpan.FromSeconds(30);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

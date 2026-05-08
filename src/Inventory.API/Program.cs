@@ -54,31 +54,32 @@ app.MapControllers();
     });
 //}
 
-
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-    // Create database if not exists
-    await dbContext.Database.EnsureCreatedAsync();
-
-    // Seed test data if database is empty
-    if (!await dbContext.Products.AnyAsync())
+    using (var scope = app.Services.CreateScope())
     {
-        dbContext.Products.Add(Inventory.Domain.Entities.Product.Create(
-            Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            "Flash Sale Item",
-            100
-        ));
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        await dbContext.SaveChangesAsync();
-        Console.WriteLine("Database seeded with test product");
-    }
-    else
-    {
-        Console.WriteLine("Database already has data");
+        // Create database if not exists
+        await dbContext.Database.EnsureCreatedAsync();
+
+        // Seed test data if database is empty
+        if (!await dbContext.Products.AnyAsync())
+        {
+            dbContext.Products.Add(Inventory.Domain.Entities.Product.Create(
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                "Flash Sale Item",
+                100
+            ));
+
+            await dbContext.SaveChangesAsync();
+            Console.WriteLine("Database seeded with test product");
+        }
+        else
+        {
+            Console.WriteLine("Database already has data");
+        }
     }
 }
-
 
 app.Run();

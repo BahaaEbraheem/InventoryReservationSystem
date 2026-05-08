@@ -1,12 +1,13 @@
 ﻿using Inventory.API;
-using Inventory.Infrastructure.BackgroundServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Inventory.IntegrationTests;
 
-public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+public class CustomWebApplicationFactory_NoBackground : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -14,7 +15,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            services.AddHostedService<ReservationExpirationService>();
+            // تعطيل جميع الـ Background Services
+            services.RemoveAll<IHostedService>();
         });
     }
 }
